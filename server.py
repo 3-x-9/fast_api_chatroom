@@ -46,11 +46,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def homepage():
-    return FileResponse("/static/landing_page/index.html")
+    return FileResponse("static/landing_page/index.html")
 
 @app.get("/register")
 async def register_page():
-    return FileResponse("/static/register_page/index.html")
+    return FileResponse("static/register_page/index.html")
 
 @app.post("/register")
 async def register_user(username: str = Form(...), password: str = Form(...)):
