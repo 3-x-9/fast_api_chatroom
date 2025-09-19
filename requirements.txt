@@ -3,3 +3,4 @@ uvicorn[standard]
 databases[postgresql]
 asyncpg
 python-dotenv
+python-multipart
