@@ -42,21 +42,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @app.get("/")
 async def homepage():
-    return HTMLResponse("""<h1> Welcome to the chatroom! </h1>
-                        <a href="/login"> Login </a> | <a href="/register"> Register </a>""")
+    return FileResponse("/static/landing_page/index.html")
 
 @app.get("/register")
 async def register_page():
-    return HTMLResponse("""
-                        <h1>Register</h1>
-                        <form method="post">
-                            <input name="username" placeholder="Username">
-                            <input name="password" type="password" placeholder="Password">
-                            <button type="submit">Register</button>
-                        </form>
-                        """)
+    return FileResponse("/static/register_page/index.html")
 
 @app.post("/register")
 async def register_user(username: str = Form(...), password: str = Form(...)):
@@ -70,14 +64,7 @@ async def register_user(username: str = Form(...), password: str = Form(...)):
 
 @app.get("/login")
 async def login_page():
-    return HTMLResponse("""
-                        <h1>Login</h1>
-                        <form method="post">
-                            <input name="username" placeholder="Username">
-                            <input name="password" type="password" placeholder="Password">
-                            <button type="submit">Login</button>
-                        </form>
-                        """)
+    return FileResponse("static/login_page/index.html")
 
 @app.post("/login")
 async def login_user(username: str = Form(...), password: str = Form(...)):
@@ -92,12 +79,9 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
             return HTMLResponse("<h3>Wrong password or username.</h3>")
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
 @app.get("/chatroom")
 async def chatroom_page():
-    return FileResponse("static/index.html")
+    return FileResponse("static/chat/index.html")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -106,9 +90,9 @@ async def websocket_endpoint(websocket: WebSocket):
     first_data = json.loads(first_msg)
     username = first_data.get("username", "anonymous")
     
-    for username, body, timestamp in await get_messages():
+    for msg_username, body, timestamp in await get_messages():
         prev_msg_data = json.dumps({
-            "username": username,
+            "username": msg_username,
             "body": body,
             "timestamp": timestamp
         })
