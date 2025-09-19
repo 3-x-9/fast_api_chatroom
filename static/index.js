@@ -1,6 +1,6 @@
 console.log("hey")
 
-const URL = "ws://localhost:8000/ws"
+const URL = `ws://${window.location.host}/ws`
 
 const ws = new WebSocket(URL)
 const form = document.querySelector('form')
