@@ -1,6 +1,8 @@
 console.log("hey")
 
-const URL = `ws://${window.location.host}/ws`
+const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+
+const URL = `${protocol}//${window.location.host}/ws`
 
 const ws = new WebSocket(URL)
 const form = document.querySelector('form')
