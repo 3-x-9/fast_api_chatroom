@@ -1,44 +1,32 @@
 from fastapi import FastAPI, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-import aiosqlite
+# import aiosqlite ==> not needed anymore switched to PostgreSQL 
+from databases import Database
 from contextlib import asynccontextmanager
 import json
 from datetime import datetime
-
-user_db = None
-msg_db = None
+import os 
+import asyncpg
 
 connections = {}
+
+USER_DATABASE_URL = os.getenv("USER_DATABASE_URL")
+MSG_DATABASE_URL = os.getenv("MSG_DATABASE_URL")
+user_db = Database(USER_DATABASE_URL)
+msg_db = Database(MSG_DATABASE_URL)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global user_db, msg_db
     # init user db for passwords/usernames
-    user_db = await aiosqlite.connect("user.db")
-    await user_db.execute("""CREATE TABLE IF NOT EXISTS users (
-                          id INTEGER PRIMARY KEY AUTOINCREMENT,
-                          username TEXT UNIQUE NOT NULL,
-                          password TEXT NOT NULL
-                          )"""
-                          )
-    await user_db.commit()
+    await user_db.connect()
+    await msg_db.connect()
 
-    # init msg db for persisting msgs/history
-    msg_db = await aiosqlite.connect("messages.db")
-    await msg_db.execute("""CREATE TABLE IF NOT EXISTS messages (
-                          id INTEGER PRIMARY KEY AUTOINCREMENT,
-                          username TEXT NOT NULL,
-                          body TEXT NOT NULL,
-                          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                          )"""
-                          )
-    await msg_db.commit()
-    
     yield
     
-    await user_db.close()
-    await msg_db.close()
+    await user_db.disconnect()
+    await msg_db.disconnect()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -55,13 +43,14 @@ async def register_page():
 @app.post("/register")
 async def register_user(username: str = Form(...), password: str = Form(...)):
     global user_db
-    try:
-        await user_db.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
-        await user_db.commit()
-        return HTMLResponse(f"<h3>User {username} registered successfully!</h3>")
-    except aiosqlite.IntegrityError:
-        return HTMLResponse("<h3>Username already taken.</h3>")
 
+    existing = await user_db.fetch_one("SELECT id FROM users WHERE username = :username", {"username": username})
+    if existing:
+        return HTMLResponse("<h3>Username already taken.</h3>")
+    query = "INSERT INTO users (username, password) VALUES (:username, :password)"
+    await user_db.execute(query, {"username": username, "password": password})
+    return RedirectResponse("/chatroom", status_code=303)
+    
 @app.get("/login")
 async def login_page():
     return FileResponse("static/login_page/index.html")
@@ -69,14 +58,14 @@ async def login_page():
 @app.post("/login")
 async def login_user(username: str = Form(...), password: str = Form(...)):
     global user_db
-    async with user_db.execute("SELECT password FROM users WHERE username = ?", (username,)) as cursor:
-        row = await cursor.fetchone()
-        if row and row[0] == password:
-            response = RedirectResponse("/chatroom", status_code=303)
-            response.set_cookie(key="username", value=username, httponly=False)
-            return response 
-        else:
-            return HTMLResponse("<h3>Wrong password or username.</h3>")
+    query = "SELECT password FROM users WHERE username = :username"
+    row = await user_db.fetch_one(query, {"username": username})
+    if row and row["password"] == password:
+        response = RedirectResponse("/chatroom", status_code=303)
+        response.set_cookie(key="username", value=username, httponly=False)
+        return response 
+    else:
+        return HTMLResponse("<h3>Wrong password or username.</h3>")
 
 
 @app.get("/chatroom")
@@ -108,8 +97,11 @@ async def websocket_endpoint(websocket: WebSocket):
             
             for conn in list(connections):
                 try:
-                    await msg_db.execute("INSERT INTO MESSAGES (username, body, timestamp) VALUES (?, ?, ?)", (username, msg_data["body"], datetime.now().isoformat()))
-                    await msg_db.commit()
+                    query = "INSERT INTO messages (username, body, timestamp) VALUES (:username, :body, :timestamp)"
+                    await msg_db.execute(query, {
+                                                "username": username,
+                                                "body": msg_data["body"],
+                                                "timestamp": datetime.now().isoformat()})
                     await conn.send_text(json.dumps(msg_data))                
 
                 except WebSocketDisconnect:
@@ -119,7 +111,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def get_messages(limit=50):
     global msg_db
-    cursor = await msg_db.execute("SELECT username, body, timestamp FROM messages ORDER BY id DESC LIMIT ?", (limit,))
-    rows = await cursor.fetchall()
-    await cursor.close()
+    query = f"SELECT username, body, timestamp FROM messages ORDER BY id DESC LIMIT {limit}"
+    rows = await msg_db.fetch_all(query)
     return rows[::-1]
