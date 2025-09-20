@@ -119,19 +119,16 @@ async def websocket_endpoint(websocket: WebSocket, room_name: str):
             msg_text = await websocket.receive_text()
             msg_data = json.loads(msg_text) 
             msg_data["username"] = rooms[room_name][websocket]
-            
-            for conn in list(rooms[room_name].keys()):
-                try:
-                    supabase.table("messages").insert({
+
+            if await check_command(websocket, room_name, msg_data):
+                continue
+            supabase.table("messages").insert({
                         "username": username,
                         "body": msg_data["body"],
                         "timestamp": datetime.now().isoformat(),
                         "room_name": room_name}).execute()
-                    if conn:
-                        await conn.send_text(json.dumps(msg_data))                
 
-                except WebSocketDisconnect:
-                    rooms[room_name].pop(conn, None)
+            await broadcast(room_name, msg_data)
     except WebSocketDisconnect:
         rooms[room_name].pop(websocket, None)
 
@@ -141,3 +138,76 @@ def get_messages(room_name, limit=50):
         return results.data[::-1] if results.data else []
     except Exception as e:
         return []
+    
+async def check_command(self_conn, cur_room_name, message):
+    if message["body"].startswith("/"):
+        
+        error_msg = json.dumps({
+                "username": "SERVER",
+                "body": f"Incorrect usage of command do /help for a list of commands!!",
+                "timestamp": datetime.now().isoformat()
+            })
+
+        parts = message["body"].split(" ", 1)
+        command = parts[0]
+        value = parts[1] if len(parts) > 1 else ""
+        if value == "":
+            await self_conn.send_text(error_msg)
+            return True 
+
+        if command.lower() == "/shout":
+            shout_msg = {
+                "username": f"SHOUT {message['username']}",
+                "body": value,
+                "timestamp": datetime.now().isoformat()
+            }
+            for room_name, connections in rooms.items():
+                await broadcast(room_name, shout_msg)
+            return True
+
+        elif command.lower() == "/who":
+            users_inroom = list(rooms[cur_room_name].values())
+            cur_users_msg = {
+                "username": "SERVER",
+                "body": f"Users in current room: {",".join(users_inroom)}",
+                "timestamp": datetime.now().isoformat()
+            }
+            await broadcast(cur_room_name, cur_users_msg)
+            return True
+        elif command.lower() == "/msg":
+            try:
+                reciever, pm = value.split(" ", 1) 
+            except ValueError:
+                await self_conn.send_text(error_msg)
+                return True
+            found = False
+
+            for conn, user in rooms[cur_room_name].items():
+                if user == reciever:
+                    await conn.send_text(json.dumps({
+                        "username": f"MSG from {message['username']}",
+                        "body": pm,
+                        "timestamp": datetime.now().isoformat() 
+                    }))
+                    await self_conn.send_text(json.dumps({
+                        "username": f"MSG to {message['username']}",
+                        "body": pm,
+                        "timestamp": datetime.now().isoformat() 
+                    }))
+                    found = True
+                    return True
+            if not found:
+                await self_conn.send_text(error_msg)
+            
+    else:
+        return False  
+
+
+async def broadcast(room_name, msg_data):
+    for conn in list(rooms[room_name].keys()):
+        try:
+            if conn:
+                await conn.send_text(json.dumps(msg_data))                
+
+        except WebSocketDisconnect:
+            rooms[room_name].pop(conn, None)  
