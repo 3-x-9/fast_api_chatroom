@@ -92,7 +92,7 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
 async def chatroom_page():
     return FileResponse("static/chat/index.html")
 
-@app.websocket("/ws")
+@app.websocket("/ws/{room_name}")
 async def websocket_endpoint(websocket: WebSocket, room_name: str):
     await websocket.accept()
 
