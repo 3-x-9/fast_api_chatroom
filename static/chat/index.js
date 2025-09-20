@@ -6,13 +6,6 @@ const roomName = window.location.pathname.split("/").pop();
 
 const rooms = document.querySelectorAll(".room_item")
 
-rooms.forEach(room => {
-    room.addEventListener('click', (event) => {
-        const roomName = event.target.dataset.room;
-        window.location.href = `/chatroom/${roomName}`;
-    });
-});
-
 const URL = `${protocol}//${window.location.host}/ws/${roomName}`
 
 const ws = new WebSocket(URL)
@@ -20,8 +13,7 @@ const chat_form = document.getElementById('chat_form')
 const rooms_form = document.getElementById('new_room_form')
 const messageList = document.querySelector('#messages')
 const text_area = document.querySelector("#text_input")
-
-
+const room_list = document.querySelector("#room_list")
 
 
 ws.onopen = (event) =>{
@@ -79,4 +71,36 @@ function getCookie(name) {
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop().split(';').shift();
 }
+
+rooms.forEach(room => {
+    room.addEventListener('click', (event) => {
+        const roomName = event.target.dataset.room;
+        window.location.href = `/chatroom/${roomName}`;
+    });
+});
+
+rooms_form.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const room_input = document.getElementById('new_room_input');
+    const roomName = room_input.value.trim();
+    if(roomName) {
+        createRoom(roomName);
+        room_input.value = '';
+   }
+});
+
+function createRoom(room_name) {
+    const li = document.createElement('li');
+    li.textContent = `# ${room_name}`;
+    li.classList.add('room_item');
+    li.dataset.room = room_name
+    
+    li.addEventListener('click', () => {
+        window.location.href = `/chatroom/${room_name}`;
+    });
+    
+    room_list.appendChild(li);
+
+}
+
 const username = getCookie("username")
