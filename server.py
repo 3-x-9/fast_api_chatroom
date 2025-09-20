@@ -61,7 +61,7 @@ async def register_user(username: str = Form(...), password: str = Form(...)):
             return HTMLResponse("<h3>Username already taken.</h3>", status_code=400)
         return HTMLResponse(f"<h3>Registration failed: {str(e)}</h3>", status_code=400)
     
-    redir_response = RedirectResponse("/chatroom", status_code=303)
+    redir_response = RedirectResponse("/chatroom/global", status_code=303)
     redir_response.set_cookie(key="username", value=username, httponly=False)
     return redir_response
 
@@ -84,7 +84,7 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
     if not bcrypt.checkpw(entered_password_bytes, bytes_stored_password):
         return FileResponse("static/login_page_fail/index.html")
 
-    response = RedirectResponse("/chatroom", status_code=303)
+    response = RedirectResponse("/chatroom/global", status_code=303)
     response.set_cookie(key="username", value=username, httponly=False)
     return response 
 
@@ -127,7 +127,7 @@ async def websocket_endpoint(websocket: WebSocket, room_name: str):
                         "body": msg_data["body"],
                         "timestamp": datetime.now().isoformat(),
                         "room_name": room_name}).execute()
-                    if conn != websocket:
+                    if conn:
                         await conn.send_text(json.dumps(msg_data))                
 
                 except WebSocketDisconnect:

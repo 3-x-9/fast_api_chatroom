@@ -16,7 +16,8 @@ rooms.forEach(room => {
 const URL = `${protocol}//${window.location.host}/ws/${roomName}`
 
 const ws = new WebSocket(URL)
-const form = document.querySelector('form')
+const chat_form = document.getElementById('chat_form')
+const rooms_form = document.getElementById('new_room_form')
 const messageList = document.querySelector('#messages')
 const text_area = document.querySelector("#text_input")
 
@@ -50,7 +51,7 @@ ws.onerror = (event) =>{
     console.log("Connection error")
 }
 
-form.addEventListener('submit', (event) => {
+chat_form.addEventListener('submit', (event) => {
     event.preventDefault();
 
     sendMessage();
@@ -65,12 +66,12 @@ text_area.addEventListener('keydown', (event) => {
 })
 
 function sendMessage() {
-    const formData = new FormData(form);
+    const formData = new FormData(chat_form);
     const message = formData.get('text_input');
     ws.send(JSON.stringify({"username": username,
                             "body": message
     }));
-    form.reset();
+    chat_form.reset();
 }
 
 function getCookie(name) {
