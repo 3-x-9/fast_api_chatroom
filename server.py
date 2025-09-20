@@ -76,7 +76,7 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
     stored_password = result.data[0]["password"]
     bytes_stored_password = stored_password.encode("utf-8")
 
-    if not bcrypt.checkpw(entered_password_bytes, bytes_stored_password)
+    if not bcrypt.checkpw(entered_password_bytes, bytes_stored_password):
         return HTMLResponse("<h3>Wrong password.</h3>", status_code=400)
 
     response = RedirectResponse("/chatroom", status_code=303)
