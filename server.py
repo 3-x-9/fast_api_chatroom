@@ -9,6 +9,7 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 import psycopg2
+import bcrypt
 
 from supabase import create_client
 
@@ -42,10 +43,13 @@ async def register_page():
 
 @app.post("/register")
 async def register_user(username: str = Form(...), password: str = Form(...)):
+    byte_password = password.encode("utf-8")
+    hashed = bcrypt.hashpw(byte_password, bcrypt.gensalt())
+
     try:
         result = supabase.table("users").insert({
             "username": username,
-            "password": password
+            "password": hashed.decode("utf-8")
         }).execute()
         if not result.data:
             return HTMLResponse("<h3>Registration failed.</h3>", status_code=400)
@@ -67,9 +71,12 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
     if not result.data:
         return HTMLResponse("<h3>User not found.</h3>", status_code=400)
     
-    stored_password = result.data[0]["password"]
+    entered_password_bytes = password.encode("utf-8")
 
-    if stored_password != password:
+    stored_password = result.data[0]["password"]
+    bytes_stored_password = stored_password.encode("utf-8")
+
+    if not bcrypt.checkpw(entered_password_bytes, bytes_stored_password)
         return HTMLResponse("<h3>Wrong password.</h3>", status_code=400)
 
     response = RedirectResponse("/chatroom", status_code=303)
