@@ -52,7 +52,7 @@ async def register_user(username: str = Form(...), password: str = Form(...)):
             "password": hashed.decode("utf-8")
         }).execute()
         if not result.data:
-            return HTMLResponse("<h3>Registration failed.</h3>", status_code=400)
+            return FileResponse("static/register_page_fail/index.html")
 
     except Exception as e:
         if "duplicate key" in str(e).lower():
@@ -69,15 +69,15 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
     result = supabase.table("users").select("password").eq("username", username).execute()
     
     if not result.data:
-        return HTMLResponse("<h3>User not found.</h3>", status_code=400)
-    
+        return FileResponse("static/login_page_fail/index.html")
+
     entered_password_bytes = password.encode("utf-8")
 
     stored_password = result.data[0]["password"]
     bytes_stored_password = stored_password.encode("utf-8")
 
     if not bcrypt.checkpw(entered_password_bytes, bytes_stored_password):
-        return HTMLResponse("<h3>Wrong password.</h3>", status_code=400)
+        return FileResponse("static/login_page_fail/index.html")
 
     response = RedirectResponse("/chatroom", status_code=303)
     response.set_cookie(key="username", value=username, httponly=False)
