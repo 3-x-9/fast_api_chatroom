@@ -2,32 +2,32 @@ from fastapi import FastAPI, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 # import aiosqlite ==> not needed anymore switched to PostgreSQL 
-from databases import Database
 from contextlib import asynccontextmanager
 import json
 from datetime import datetime
 import os 
-import asyncpg
+from dotenv import load_dotenv
+from pathlib import Path
+import psycopg2
+
+from supabase import create_client
+
+
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 connections = {}
 
-USER_DATABASE_URL = os.getenv("USER_DATABASE_URL")
-MSG_DATABASE_URL = os.getenv("MSG_DATABASE_URL")
-user_db = Database(USER_DATABASE_URL)
-msg_db = Database(MSG_DATABASE_URL)
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY")
+
+supabase = create_client(url, key)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global user_db, msg_db
     # init user db for passwords/usernames
-    await user_db.connect()
-    await msg_db.connect()
-
     yield
     
-    await user_db.disconnect()
-    await msg_db.disconnect()
-
 app = FastAPI(lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -42,13 +42,12 @@ async def register_page():
 
 @app.post("/register")
 async def register_user(username: str = Form(...), password: str = Form(...)):
-    global user_db
-
-    existing = await user_db.fetch_one("SELECT id FROM users WHERE username = :username", {"username": username})
-    if existing:
-        return HTMLResponse("<h3>Username already taken.</h3>")
-    query = "INSERT INTO users (username, password) VALUES (:username, :password)"
-    await user_db.execute(query, {"username": username, "password": password})
+    result = supabase.table("users").insert({
+        "username": username,
+        "password": password
+    }).execute()
+    if result.error:
+        return HTMLResponse(f"<h3>Registration failed: {result.error['message']}</h3>", status_code=400)
     return RedirectResponse("/chatroom", status_code=303)
     
 @app.get("/login")
@@ -57,16 +56,19 @@ async def login_page():
 
 @app.post("/login")
 async def login_user(username: str = Form(...), password: str = Form(...)):
-    global user_db
-    query = "SELECT password FROM users WHERE username = :username"
-    row = await user_db.fetch_one(query, {"username": username})
-    if row and row["password"] == password:
-        response = RedirectResponse("/chatroom", status_code=303)
-        response.set_cookie(key="username", value=username, httponly=False)
-        return response 
-    else:
-        return HTMLResponse("<h3>Wrong password or username.</h3>")
+    result = supabase.table("users").select("password").eq("username", username).execute()
+    
+    if not result.data or result.error:
+        return HTMLResponse("<h3>User not found.</h3>", status_code=400)
+    
+    stored_password = result.data[0]["password"]
 
+    if stored_password != password:
+        return HTMLResponse("<h3>Wrong password.</h3>", status_code=400)
+
+    response = RedirectResponse("/chatroom", status_code=303)
+    response.set_cookie(key="username", value=username, httponly=False)
+    return response 
 
 @app.get("/chatroom")
 async def chatroom_page():
@@ -79,11 +81,11 @@ async def websocket_endpoint(websocket: WebSocket):
     first_data = json.loads(first_msg)
     username = first_data.get("username", "anonymous")
     
-    for msg_username, body, timestamp in await get_messages():
+    for msg in get_messages():
         prev_msg_data = json.dumps({
-            "username": msg_username,
-            "body": body,
-            "timestamp": timestamp
+            "username": msg["username"],
+            "body": msg["body"],
+            "timestamp": msg["timestamp"]
         })
         await websocket.send_text(prev_msg_data)
 
@@ -97,11 +99,10 @@ async def websocket_endpoint(websocket: WebSocket):
             
             for conn in list(connections):
                 try:
-                    query = "INSERT INTO messages (username, body, timestamp) VALUES (:username, :body, :timestamp)"
-                    await msg_db.execute(query, {
-                                                "username": username,
-                                                "body": msg_data["body"],
-                                                "timestamp": datetime.now().isoformat()})
+                    data = supabase.table("messages").insert({
+                        "username": username,
+                        "body": msg_data["body"],
+                        "timestamp": datetime.now().isoformat()}).execute()
                     await conn.send_text(json.dumps(msg_data))                
 
                 except WebSocketDisconnect:
@@ -109,8 +110,8 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         connections.pop(websocket, None)
 
-async def get_messages(limit=50):
-    global msg_db
-    query = f"SELECT username, body, timestamp FROM messages ORDER BY id DESC LIMIT {limit}"
-    rows = await msg_db.fetch_all(query)
-    return rows[::-1]
+def get_messages(limit=50):
+    results = supabase.table("messages").select("*").order("id", desc=True).limit(limit).execute()
+    if results.error:
+        return []
+    return results.data[::-1]
