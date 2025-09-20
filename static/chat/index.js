@@ -8,8 +8,6 @@ const room_buttons = document.querySelectorAll("#room_nav button")
 
 const URL = `${protocol}//${window.location.host}/ws/${roomName}`
 
-const userClass = eventData.username === username ? "self" : "other";
-
 const ws = new WebSocket(URL)
 const chat_form = document.getElementById('chat_form')
 const rooms_form = document.getElementById('new_room_form')
@@ -38,8 +36,6 @@ messageList.innerHTML += message;
 messageList.scrollTop = messageList.scrollHeight;
 
     messageList.innerHTML += message
-
-    console.log("Message: ", eventData)
     messageList.scrollTop = messageList.scrollHeight;
 }
 
