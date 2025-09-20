@@ -2,12 +2,26 @@ console.log("hey")
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
-const URL = `${protocol}//${window.location.host}/ws`
+const roomName = window.location.pathname.split("/").pop();  
+
+const rooms = document.querySelectorAll(".room_item")
+
+rooms.forEach(room => {
+    room.addEventListener('click', (event) => {
+        const roomName = event.target.dataset.room;
+        window.location.href = `/chatroom/${roomName}`;
+    });
+});
+
+const URL = `${protocol}//${window.location.host}/ws/${roomName}`
 
 const ws = new WebSocket(URL)
 const form = document.querySelector('form')
 const messageList = document.querySelector('#messages')
 const text_area = document.querySelector("#text_input")
+
+
+
 
 ws.onopen = (event) =>{
     console.log("Connection established")

@@ -17,7 +17,9 @@ from supabase import create_client
 env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-connections = {}
+rooms = {
+
+               }
 
 url = os.getenv("SUPABASE_URL")
 key = os.getenv("SUPABASE_KEY")
@@ -58,8 +60,11 @@ async def register_user(username: str = Form(...), password: str = Form(...)):
         if "duplicate key" in str(e).lower():
             return HTMLResponse("<h3>Username already taken.</h3>", status_code=400)
         return HTMLResponse(f"<h3>Registration failed: {str(e)}</h3>", status_code=400)
-    return RedirectResponse("/chatroom", status_code=303)
     
+    redir_response = RedirectResponse("/chatroom", status_code=303)
+    redir_response.set_cookie(key="username", value=username, httponly=False)
+    return redir_response
+
 @app.get("/login")
 async def login_page():
     return FileResponse("static/login_page/index.html")
@@ -83,49 +88,56 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
     response.set_cookie(key="username", value=username, httponly=False)
     return response 
 
-@app.get("/chatroom")
+@app.get("/chatroom/{room_name}")
 async def chatroom_page():
     return FileResponse("static/chat/index.html")
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, room_name: str):
     await websocket.accept()
+
+    if room_name not in rooms:
+        rooms[room_name] = {}
+
     first_msg = await websocket.receive_text()
     first_data = json.loads(first_msg)
     username = first_data.get("username", "anonymous")
     
-    for msg in get_messages():
+    for msg in get_messages(room_name):
         prev_msg_data = json.dumps({
             "username": msg["username"],
             "body": msg["body"],
-            "timestamp": msg["timestamp"]
+            "timestamp": msg["timestamp"],
+            "room_name": room_name
         })
         await websocket.send_text(prev_msg_data)
 
-    connections[websocket] = username
+    rooms[room_name][websocket] = username
 
     try:
         while True:
             msg_text = await websocket.receive_text()
             msg_data = json.loads(msg_text) 
-            msg_data["username"] = connections[websocket]
+            msg_data["username"] = rooms[room_name][websocket]
             
-            for conn in list(connections):
+            for conn in list(rooms[room_name].keys()):
                 try:
                     supabase.table("messages").insert({
                         "username": username,
                         "body": msg_data["body"],
-                        "timestamp": datetime.now().isoformat()}).execute()
-                    await conn.send_text(json.dumps(msg_data))                
+                        "timestamp": datetime.now().isoformat(),
+                        "room_name": room_name}).execute()
+                    if conn != websocket:
+                        await conn.send_text(json.dumps(msg_data))                
 
                 except WebSocketDisconnect:
-                    connections.pop(conn, None)
+                    rooms[room_name].pop(conn, None)
     except WebSocketDisconnect:
-        connections.pop(websocket, None)
+        rooms[room_name].pop(websocket, None)
 
-def get_messages(limit=50):
+def get_messages(room_name, limit=50):
     try:
-        results = supabase.table("messages").select("*").order("id", desc=True).limit(limit).execute()
+        results = supabase.table("messages").select("*").eq("room_name", room_name).order("id", desc=True).limit(limit).execute()
         return results.data[::-1] if results.data else []
     except Exception as e:
         return []

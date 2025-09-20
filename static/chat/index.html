@@ -4,16 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chatroom Client</title>
-    <link rel="stylesheet" href="/static/chat/style.css?v=4">
+    <link rel="stylesheet" href="/static/chat/style.css?v=5">
 </head>
 <body>
-    <div id="messages"></div>
-    <div id="messages_input">
-        <form>
-            <textarea name="text_input" id="text_input" rows="3", placeholder="message..."></textarea>
-            <button type="submit">Send</button>
-        </form>
+    <div class="container">
+        <!-- Sidebar for rooms -->
+        <aside class="sidebar">
+            <h2>Rooms</h2>
+            <ul id="room_list">
+                <!-- Example rooms; these could be dynamically generated -->
+                <li class="room_item" data-room="general"># General</li>
+                <li class="room_item" data-room="random"># Random</li>
+            </ul>
+            <form id="new_room_form">
+                <input type="text" id="new_room_input" placeholder="New room name">
+                <button type="submit">+</button>
+            </form>
+        </aside>
+
+        <!-- Main chat area -->
+        <main class="chat_area">
+            <div id="messages" class="messages"></div>
+            <div id="messages_input" class="messages_input">
+                <form id="chat_form">
+                    <textarea name="text_input" id="text_input" rows="3" placeholder="Type your message..."></textarea>
+                    <button type="submit">Send</button>
+                </form>
+            </div>
+        </main>
     </div>
-    <script src="/static/chat/index.js?v=3"></script>
+
+    <script src="/static/chat/index.js?v=4"></script>
 </body>
 </html>
