@@ -15,6 +15,8 @@ const messageList = document.querySelector('#messages')
 const text_area = document.querySelector("#text_input")
 const room_list = document.querySelector("#room_list")
 
+const username = getCookie("username")
+
 
 ws.onopen = (event) =>{
     console.log("Connection established")
@@ -26,7 +28,7 @@ ws.onmessage = (event) =>{
     const eventData = JSON.parse(event.data)
     const message = `
     <div class="message">
-        <p><b>${eventData.username}</b> : ${eventData.body}</p>
+        <p><b>[${eventData.role}] ${eventData.username}</b> : ${eventData.body}</p>
     </div>`
 
     messageList.innerHTML += message
@@ -102,5 +104,3 @@ function createRoom(room_name) {
     room_list.appendChild(li);
 
 }
-
-const username = getCookie("username")
