@@ -4,7 +4,7 @@ const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
 const roomName = window.location.pathname.split("/").pop();  
 
-const rooms = document.querySelectorAll(".room_item")
+const room_buttons = document.querySelectorAll("#room_nav button")
 
 const URL = `${protocol}//${window.location.host}/ws/${roomName}`
 
@@ -26,10 +26,14 @@ ws.onopen = (event) =>{
 ws.onmessage = (event) =>{
     console.log("Received raw:", event.data);
     const eventData = JSON.parse(event.data)
+    const role_class = eventData.role.toLowerCase();
+
     const message = `
-    <div class="message">
-        <p><b>[${eventData.role}] ${eventData.username}</b> : ${eventData.body}</p>
-    </div>`
+                    <div class="message ${roleClass} ${userClass}">
+                    <p><b>[${eventData.role}] ${eventData.username}</b> : ${eventData.body}</p>
+                    </div>`;
+messageList.innerHTML += msgHTML;
+messageList.scrollTop = messageList.scrollHeight;
 
     messageList.innerHTML += message
 
@@ -74,10 +78,15 @@ function getCookie(name) {
     if (parts.length === 2) return parts.pop().split(';').shift();
 }
 
-rooms.forEach(room => {
-    room.addEventListener('click', (event) => {
-        const roomName = event.target.dataset.room;
-        window.location.href = `/chatroom/${roomName}`;
+room_buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const room = btn.dataset.room;
+        if(room === "new"){
+            const newRoom = prompt("Enter new room name:");
+            if(newRoom) window.location.href = `/chatroom/${newRoom}`;
+        } else {
+            window.location.href = `/chatroom/${room}`;
+        }
     });
 });
 
