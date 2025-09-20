@@ -148,6 +148,9 @@ def get_messages(room_name, limit=50):
         return []
     
 async def check_command(self_conn, cur_room_name, message):
+    if not message.get("body"):
+        return False
+    
     if message["body"].startswith("/"):
         
         error_msg = json.dumps({

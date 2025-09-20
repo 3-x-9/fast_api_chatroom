@@ -10,7 +10,6 @@ const URL = `${protocol}//${window.location.host}/ws/${roomName}`
 
 const ws = new WebSocket(URL)
 const chat_form = document.getElementById('chat_form')
-const rooms_form = document.getElementById('new_room_form')
 const messageList = document.querySelector('#messages')
 const text_area = document.querySelector("#text_input")
 const room_list = document.querySelector("#room_list")
@@ -32,10 +31,8 @@ ws.onmessage = (event) =>{
                     <div class="message ${role_class}">
                     <p><b>[${eventData.role}] ${eventData.username}</b> : ${eventData.body}</p>
                     </div>`;
-messageList.innerHTML += message;
-messageList.scrollTop = messageList.scrollHeight;
-
-    messageList.innerHTML += message
+                    
+    messageList.innerHTML += message;
     messageList.scrollTop = messageList.scrollHeight;
 }
 
@@ -87,7 +84,7 @@ room_buttons.forEach(btn => {
         }
     });
 });
-
+/*
 rooms_form.addEventListener('submit', (event) => {
     event.preventDefault()
     const room_input = document.getElementById('new_room_input');
@@ -97,7 +94,7 @@ rooms_form.addEventListener('submit', (event) => {
         room_input.value = '';
    }
 });
-
+*/
 function createRoom(room_name) {
     const li = document.createElement('li');
     li.textContent = `# ${room_name}`;
