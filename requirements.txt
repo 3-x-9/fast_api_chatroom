@@ -4,4 +4,4 @@ databases[postgresql]
 python-dotenv
 python-multipart
 supabase
-passlib[bcrypt
+passlib[bcrypt]
