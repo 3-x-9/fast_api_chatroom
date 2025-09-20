@@ -29,7 +29,7 @@ ws.onmessage = (event) =>{
     const role_class = eventData.role.toLowerCase();
 
     const message = `
-                    <div class="message ${role_class} ${userClass}">
+                    <div class="message ${role_class}">
                     <p><b>[${eventData.role}] ${eventData.username}</b> : ${eventData.body}</p>
                     </div>`;
 messageList.innerHTML += message;
