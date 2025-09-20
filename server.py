@@ -42,12 +42,18 @@ async def register_page():
 
 @app.post("/register")
 async def register_user(username: str = Form(...), password: str = Form(...)):
-    result = supabase.table("users").insert({
-        "username": username,
-        "password": password
-    }).execute()
-    if result.error:
-        return HTMLResponse(f"<h3>Registration failed: {result.error['message']}</h3>", status_code=400)
+    try:
+        result = supabase.table("users").insert({
+            "username": username,
+            "password": password
+        }).execute()
+        if not result.data:
+            return HTMLResponse("<h3>Registration failed.</h3>", status_code=400)
+
+    except Exception as e:
+        if "duplicate key" in str(e).lower():
+            return HTMLResponse("<h3>Username already taken.</h3>", status_code=400)
+        return HTMLResponse(f"<h3>Registration failed: {str(e)}</h3>", status_code=400)
     return RedirectResponse("/chatroom", status_code=303)
     
 @app.get("/login")
@@ -58,7 +64,7 @@ async def login_page():
 async def login_user(username: str = Form(...), password: str = Form(...)):
     result = supabase.table("users").select("password").eq("username", username).execute()
     
-    if not result.data or result.error:
+    if not result.data:
         return HTMLResponse("<h3>User not found.</h3>", status_code=400)
     
     stored_password = result.data[0]["password"]
@@ -99,7 +105,7 @@ async def websocket_endpoint(websocket: WebSocket):
             
             for conn in list(connections):
                 try:
-                    data = supabase.table("messages").insert({
+                    supabase.table("messages").insert({
                         "username": username,
                         "body": msg_data["body"],
                         "timestamp": datetime.now().isoformat()}).execute()
@@ -111,7 +117,8 @@ async def websocket_endpoint(websocket: WebSocket):
         connections.pop(websocket, None)
 
 def get_messages(limit=50):
-    results = supabase.table("messages").select("*").order("id", desc=True).limit(limit).execute()
-    if results.error:
+    try:
+        results = supabase.table("messages").select("*").order("id", desc=True).limit(limit).execute()
+        return results.data[::-1] if results.data else []
+    except Exception as e:
         return []
-    return results.data[::-1]
