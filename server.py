@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import psycopg2
 import bcrypt
+import random
 
 from supabase import create_client
 
@@ -177,9 +178,9 @@ async def check_command(self_conn, cur_room_name, message):
         elif command.lower() == "/who":
             value = parts[1] if len(parts) > 1 else ""
             if value != "":
-                users_inroom = list(rooms[value].values())
+                users_inroom = [u["username"] for u in rooms[value].values()]
             else:
-                users_inroom = list(rooms[cur_room_name].values())
+                users_inroom = [u["username"] for u in rooms[cur_room_name].values()]
             cur_users_msg = {
                 "username": "SERVER",
                 "body": f"Users in current room:\n{'\n   '.join(users_inroom)}",
@@ -187,9 +188,11 @@ async def check_command(self_conn, cur_room_name, message):
             }
             await broadcast(cur_room_name, cur_users_msg)
             return True
+        
+
         elif command.lower() == "/msg":
             if len(parts) > 1 and parts[1].strip():
-                value = parts [1]
+                value = parts[1]
             else:
                 await self_conn.send_text(error_msg)
                 return True
@@ -202,7 +205,7 @@ async def check_command(self_conn, cur_room_name, message):
 
             for msg_room_name, msg_connections in rooms.items():
                 for conn, user in msg_connections.items():
-                    if user == reciever:
+                    if user["username"] == reciever:
                         await conn.send_text(json.dumps({
                             "username": f"MSG from {message['username']}",
                             "body": pm,
@@ -220,7 +223,7 @@ async def check_command(self_conn, cur_room_name, message):
 
         elif command.lower() == "/help":
             if len(parts) > 1 and parts[1].strip():
-                value = parts [1]
+                value = parts[1]
             else:
                 value = "1"
             
@@ -241,6 +244,29 @@ async def check_command(self_conn, cur_room_name, message):
                         "body": help_text,
                         "timestamp": datetime.now().isoformat() 
                     }))
+
+        elif command.lower() == "/dice":
+            UNICODE_DICE = {
+                        1: "⚀",
+                        2: "⚁",
+                        3: "⚂",
+                        4: "⚃",
+                        5: "⚄",
+                        6: "⚅",
+                    }
+            
+            if len(parts) != 1:
+                await self_conn.send_text(error_msg)
+                return True
+            roll = random.randint(1,6)
+            dice_face = UNICODE_DICE[roll]
+            dice_msg = {
+                        "username": message["username"],
+                        "role": "SERVER",
+                        "body": f"Rolled {dice_face} ({roll})",
+                        "timestamp": datetime.now().isoformat() 
+                    }
+            broadcast(cur_room_name, dice_msg)
 
     else:
         return False  
