@@ -183,6 +183,7 @@ async def check_command(self_conn, cur_room_name, message):
                 users_inroom = [u["username"] for u in rooms[cur_room_name].values()]
             cur_users_msg = {
                 "username": "SERVER",
+                "role": "SERVER"
                 "body": f"Users in current room:\n{'\n   '.join(users_inroom)}",
                 "timestamp": datetime.now().isoformat()
             }
@@ -208,11 +209,13 @@ async def check_command(self_conn, cur_room_name, message):
                     if user["username"] == reciever:
                         await conn.send_text(json.dumps({
                             "username": f"MSG from {message['username']}",
+                            "role": "MSG",
                             "body": pm,
                             "timestamp": datetime.now().isoformat() 
                         }))
                         await self_conn.send_text(json.dumps({
                             "username": f"MSG to {message['username']}",
+                            "role": "MSG",
                             "body": pm,
                             "timestamp": datetime.now().isoformat() 
                         }))
@@ -266,7 +269,8 @@ async def check_command(self_conn, cur_room_name, message):
                         "body": f"Rolled {dice_face} ({roll})",
                         "timestamp": datetime.now().isoformat() 
                     }
-            broadcast(cur_room_name, dice_msg)
+            await broadcast(cur_room_name, dice_msg)
+            return True
 
     else:
         return False  
