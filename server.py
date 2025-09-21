@@ -183,7 +183,7 @@ async def check_command(self_conn, cur_room_name, message):
                 users_inroom = [u["username"] for u in rooms[cur_room_name].values()]
             cur_users_msg = {
                 "username": "SERVER",
-                "role": "SERVER"
+                "role": "SERVER",
                 "body": f"Users in current room:\n{'\n   '.join(users_inroom)}",
                 "timestamp": datetime.now().isoformat()
             }
