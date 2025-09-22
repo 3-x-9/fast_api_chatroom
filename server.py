@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi import FastAPI, Form, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 # import aiosqlite ==> not needed anymore switched to PostgreSQL 
 from contextlib import asynccontextmanager
@@ -90,6 +90,21 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
     response.set_cookie(key="username", value=username, httponly=False)
     return response 
 
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        result = supabase.storage.from_("files").upload(file.filename, content)
+        public_url = supabase.storage.from_("files").get_public_url(file.filename)
+        return JSONResponse({
+                "success": True,
+                "url": public_url,
+                "name": file.filename,
+                "type": file.content_type
+            })
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
 @app.get("/chatroom/{room_name}")
 async def chatroom_page():
     return FileResponse("static/chat/index.html")
@@ -111,13 +126,14 @@ async def websocket_endpoint(websocket: WebSocket, room_name: str):
             "role": msg.get("role", "user"),
             "body": msg["body"],
             "timestamp": msg["timestamp"],
-            "room_name": msg["room_name"]
+            "room_name": msg["room_name"],
+            "attachments": msg["attachments"]
         })
         await websocket.send_text(prev_msg_data)
 
 
     result = supabase.table("users").select("username, role").eq("username", username).execute()
-    role = result.data[0]["role"]
+    role = result.data[0]["role"] if result.data else "user"
     rooms[room_name][websocket] = {"username": username, "role": role}
 
     try:
@@ -130,12 +146,24 @@ async def websocket_endpoint(websocket: WebSocket, room_name: str):
             if await check_command(websocket, room_name, msg_data):
                 continue
 
-            supabase.table("messages").insert({
-                        "username": msg_data["username"],
-                        "role": msg_data["role"],
-                        "body": msg_data["body"],
-                        "timestamp": datetime.now().isoformat(),
-                        "room_name": room_name}).execute()
+            if "attachments" in msg_data and msg_data["attachments"]:
+                supabase.table("messages").insert({
+                            "username": msg_data["username"],
+                            "role": msg_data["role"],
+                            "body": msg_data["body"],
+                            "timestamp": datetime.now().isoformat(),
+                            "room_name": room_name,
+                            "attachments": msg_data.get("attachments", [])
+                            }).execute()
+            else:
+                supabase.table("messages").insert({
+                            "username": msg_data["username"],
+                            "role": msg_data["role"],
+                            "body": msg_data["body"],
+                            "timestamp": datetime.now().isoformat(),
+                            "room_name": room_name,
+                            "attachments": []
+                            }).execute()
 
             await broadcast(room_name, msg_data)
     except WebSocketDisconnect:
@@ -158,7 +186,8 @@ async def check_command(self_conn, cur_room_name, message):
                 "username": "SERVER",
                 "role": "[SERVER]",
                 "body": f"Incorrect usage of command do /help for a list of commands!!",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "attachments": []
             })
 
         parts = message["body"].split(" ", 1)
@@ -168,6 +197,7 @@ async def check_command(self_conn, cur_room_name, message):
             value = parts[1] if len(parts) > 1 else ""
             shout_msg = {
                 "username": f"SHOUT {message['username']}",
+                "role": message["role"],
                 "body": value,
                 "timestamp": datetime.now().isoformat()
             }
@@ -201,7 +231,7 @@ async def check_command(self_conn, cur_room_name, message):
                 reciever, pm = value.split(" ", 1) 
             except ValueError:
                 await self_conn.send_text(error_msg)
-                return False
+                return True
             found = False
 
             for msg_room_name, msg_connections in rooms.items():
@@ -211,18 +241,26 @@ async def check_command(self_conn, cur_room_name, message):
                             "username": f"MSG from {message['username']}",
                             "role": "MSG",
                             "body": pm,
-                            "timestamp": datetime.now().isoformat() 
+                            "timestamp": datetime.now().isoformat(),
+                            "attachments": [] if not message.get("attachments") else message["attachments"]
                         }))
                         await self_conn.send_text(json.dumps({
-                            "username": f"MSG to {message['username']}",
+                            "username": f"MSG to {reciever}",
                             "role": "MSG",
                             "body": pm,
-                            "timestamp": datetime.now().isoformat() 
+                            "timestamp": datetime.now().isoformat(),
+                            "attachments": [] if not message.get("attachments") else message["attachments"]
                         }))
                         found = True
                         return True
             if not found:
-                await self_conn.send_text(error_msg)
+                await self_conn.send_text(json.dumps({
+                            "username": f"SERVER",
+                            "role": "MSG",
+                            "body": "Could not find user",
+                            "timestamp": datetime.now().isoformat(),
+                            "attachments": [] if not message.get("attachments") else message["attachments"]
+                        }))
 
         elif command.lower() == "/help":
             if len(parts) > 1 and parts[1].strip():
@@ -243,7 +281,8 @@ async def check_command(self_conn, cur_room_name, message):
             help_text = "\n".join([f"{cmd}: {desc}" for cmd, desc in help_pages.get(pg, {}).items()])
 
             await self_conn.send_text(json.dumps({
-                        "username": f"MSG to {message['username']}",
+                        "username": f"SERVER",
+                        "role": "HELP",
                         "body": help_text,
                         "timestamp": datetime.now().isoformat() 
                     }))

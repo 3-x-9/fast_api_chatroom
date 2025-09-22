@@ -1,8 +1,12 @@
+const { use } = require("react");
+
 console.log("hey")
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
 const roomName = window.location.pathname.split("/").pop();  
+
+const fileInput = document.getElementById('file_input');
 
 const room_buttons = document.querySelectorAll("#room_nav button")
 
@@ -84,6 +88,17 @@ room_buttons.forEach(btn => {
         }
     });
 });
+
+function set_active_btn() {
+    const cur_room = window.location.pathname.split("/").pop();
+    room_buttons.forEach(b => {
+        if (b.dataset.room === cur_room) {
+            b.classList.add("active");
+        }
+        else {
+            b.classList.remove("active");
+        }
+})}
 /*
 rooms_form.addEventListener('submit', (event) => {
     event.preventDefault()
@@ -95,6 +110,7 @@ rooms_form.addEventListener('submit', (event) => {
    }
 });
 */
+
 function createRoom(room_name) {
     const li = document.createElement('li');
     li.textContent = `# ${room_name}`;
@@ -108,3 +124,24 @@ function createRoom(room_name) {
     room_list.appendChild(li);
 
 }
+
+fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/upload', { method: 'POST', body: formData });
+    const data = await response.json();
+
+    if (data.success) {
+        ws.send(JSON.stringify({
+            "username": username,
+            body: "Sent a file: ",
+            attachments: [{ url: data.url, name: data.name, type: data.type }]
+        }));
+    }
+    fileInput.value = "";
+});
+set_active_btn()
