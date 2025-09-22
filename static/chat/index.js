@@ -1,5 +1,3 @@
-const { use } = require("react");
-
 console.log("hey")
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
