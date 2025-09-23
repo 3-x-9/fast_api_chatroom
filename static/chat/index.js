@@ -26,12 +26,32 @@ ws.onopen = (event) =>{
 
 ws.onmessage = (event) =>{
     console.log("Received raw:", event.data);
+    
     const eventData = JSON.parse(event.data)
     const role_class = eventData.role.toLowerCase();
+    let attachment_html = "";
 
+    if (eventData.attachments) {
+        if (typeof eventData.attachments === "string") {
+            attachment_html = `<a href="${eventData.attachments}" target=_blank> ${eventData.attachments}<a/>`;
+        } else if (Array.isArray(eventData.attachments)) {
+            attachment_html = eventData.attachments.map(att => {
+                if (att.type && att.type.startsWith("image/")) {
+                    return `<img src="${att.url}" 
+                                class="chat-attachment" 
+                                style="max-width:200px; display:block; margin-top:0.5rem; border-radius:6px;">`;
+                } else {
+                    return `<a href="${att.url}" target="_blank">${att.name}</a>`;
+                }
+            }).join("");
+            } 
+        }
     const message = `
                     <div class="message ${role_class}">
-                    <p><b>[${eventData.role}] ${eventData.username}</b> : ${eventData.body}</p>
+                        <div class="message_content">
+                            <p><b>[${eventData.role}] ${eventData.username}</b> : ${eventData.body}</p>
+                            ${attachment_html}
+                        </div>
                     </div>`;
                     
     messageList.innerHTML += message;
@@ -134,10 +154,13 @@ fileInput.addEventListener('change', async () => {
     const data = await response.json();
 
     if (data.success) {
+        const attachment = { url: data.url, name: data.name, type: data.type };
+        
         ws.send(JSON.stringify({
             "username": username,
-            body: "Sent a file: ",
-            attachments: [{ url: data.url, name: data.name, type: data.type }]
+            body: "Sent a File:",
+            attachments: attachment.url
+
         }));
     }
     fileInput.value = "";

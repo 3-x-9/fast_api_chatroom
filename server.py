@@ -11,6 +11,7 @@ from pathlib import Path
 import psycopg2
 import bcrypt
 import random
+import traceback
 
 from supabase import create_client
 
@@ -90,12 +91,25 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
     response.set_cookie(key="username", value=username, httponly=False)
     return response 
 
+@app.get("/profile")
+async def profile_menu():
+    return FileResponse("static/profile_menu/index.hmtl")
+
+
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        result = supabase.storage.from_("files").upload(file.filename, content)
+        print("uploading")
+
+
+
+        result = supabase.storage.from_("files").upload(file.filename, content, {"upsert": "true"})
+        print("saving to supabase")
         public_url = supabase.storage.from_("files").get_public_url(file.filename)
+        print(f"result = {public_url}")
+
         return JSONResponse({
                 "success": True,
                 "url": public_url,
@@ -103,6 +117,9 @@ async def upload_file(file: UploadFile = File(...)):
                 "type": file.content_type
             })
     except Exception as e:
+        print("=== Exception in /upload ===")
+        traceback.print_exc()
+        print("exception:", e)
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 @app.get("/chatroom/{room_name}")
@@ -142,28 +159,22 @@ async def websocket_endpoint(websocket: WebSocket, room_name: str):
             msg_data = json.loads(msg_text) 
             msg_data["username"] = rooms[room_name][websocket]["username"]
             msg_data["role"] = rooms[room_name][websocket]["role"]
+            if msg_data.get("attachments"):
+                attachment_url = msg_data["attachments"]
+            else:
+                attachment_url = []
 
             if await check_command(websocket, room_name, msg_data):
                 continue
 
-            if "attachments" in msg_data and msg_data["attachments"]:
-                supabase.table("messages").insert({
-                            "username": msg_data["username"],
-                            "role": msg_data["role"],
-                            "body": msg_data["body"],
-                            "timestamp": datetime.now().isoformat(),
-                            "room_name": room_name,
-                            "attachments": msg_data.get("attachments", [])
-                            }).execute()
-            else:
-                supabase.table("messages").insert({
-                            "username": msg_data["username"],
-                            "role": msg_data["role"],
-                            "body": msg_data["body"],
-                            "timestamp": datetime.now().isoformat(),
-                            "room_name": room_name,
-                            "attachments": []
-                            }).execute()
+            supabase.table("messages").insert({
+                        "username": msg_data["username"],
+                        "role": msg_data["role"],
+                        "body": msg_data["body"],
+                        "timestamp": datetime.now().isoformat(),
+                        "room_name": room_name,
+                        "attachments": attachment_url
+                        }).execute()
 
             await broadcast(room_name, msg_data)
     except WebSocketDisconnect:
@@ -214,7 +225,7 @@ async def check_command(self_conn, cur_room_name, message):
             cur_users_msg = {
                 "username": "SERVER",
                 "role": "SERVER",
-                "body": f"Users in current room:\n{'\n   '.join(users_inroom)}",
+                "body": f"Users in current room:\n{', '.join(users_inroom)}",
                 "timestamp": datetime.now().isoformat()
             }
             await broadcast(cur_room_name, cur_users_msg)
